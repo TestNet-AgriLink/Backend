@@ -5,19 +5,24 @@ import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-struct Cooperative {
-    string role;
-    uint256 coOpId;
-    address payable coopAddress;
-    uint256 numberOfFarmers;
-}
-struct Farmer {
-    address payable farmerAddress;
-    uint256 land;
-    bool requested;
-    uint256 requestedAmount;
-}
+// struct Cooperative {
+//     string role;
+//     uint256 coOpId;
+//     address payable coopAddress;
+//     uint256 numberOfFarmers;
+// }
+// struct  Farmer  {
+//     address payable farmerAddress;
+//     uint256 land;
+//     bool requested;
+//     uint256 requestedAmount;
+
+// }
+
+// mapping(uint256 => Farmer)  idToFarmer;
+// mapping(uint256 => Cooperative)  idToCooperative;
 
 contract FertilizerToken is
     ERC1155,
@@ -25,17 +30,35 @@ contract FertilizerToken is
     ERC1155Burnable,
     ERC1155Supply
 {
+    struct Cooperative {
+        uint256 coOpId;
+        address payable coopAddress;
+        uint256 numberOfFarmers;
+        bool coop;
+    }
+
+    struct Farmer {
+        uint256 userId;
+        address payable farmerAddress;
+        uint256 land;
+        bool requested;
+        uint256 requestedAmount;
+        bool farmer;
+    }
+
+    mapping(uint256 => Farmer) idToFarmer;
+    mapping(uint256 => Cooperative) idToCooperative;
+
     string public constant NAME = "FertilizerToken";
     string public constant SYMBOL = "FTN";
     uint8 public constant DECIMAL = 5;
     address public headOfState;
+    address public contractAddress;
 
     // bytes32 public constant URI_SETTER_ROLE = keccak256("URI_SETTER_ROLE");
     bytes32 public constant HEAD_OF_STATE = keccak256("HEAD_OF_STATE");
     bytes32 public constant COOPERATIVE = keccak256("COOPERATIVE");
     bytes32 public constant FARMER = keccak256("FARMER");
-
-    mapping(uint256 => Cooperative) public coopIdToAddress;
 
     constructor() ERC1155("") {
         // _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -44,6 +67,8 @@ contract FertilizerToken is
         _grantRole(COOPERATIVE, msg.sender);
         _grantRole(FARMER, msg.sender);
         headOfState = msg.sender;
+        contractAddress = address(this);
+        bool setToBurn;
     }
 
     function setURI(string memory newuri) public onlyRole(HEAD_OF_STATE) {
@@ -66,23 +91,50 @@ contract FertilizerToken is
     // ) public onlyRole(HEAD_OF_STATE) {
     //     _mintBatch(to, ids, amounts, "");
     // }
+    function RegisterAsCooperative(uint256 coOpId) public {
+        idToCooperative[coOpId] = Cooperative(
+            coOpId,
+            payable(msg.sender),
+            0,
+            true
+        );
+    }
+
+    function RegisterAsFarmer(uint256 userId, uint256 land) public {
+        idToFarmer[userId] = Farmer(
+            userId,
+            payable(msg.sender),
+            land,
+            false,
+            0,
+            true
+        );
+    }
+
+    function getcoopAddress(uint256 id) public view returns (address) {
+        return idToCooperative[id].coopAddress;
+    }
 
     function transferFTToken(
         uint256 userId,
         address to,
         uint256 amount
-    ) private {
+    ) public returns (string memory) {
         address operator = msg.sender;
         address from = msg.sender;
         require(
-            from == headOfState || from == coopIdToAddress[userId].coopAddress
+            from == headOfState || from == idToCooperative[userId].coopAddress,
+            "You're not authorized"
         );
-
-        // require(
-        //     from == headOfState &&
-        //         keccak256(coopIdToAddress[userId].role) == keccak256("Coop")
-        // );
-        emit TransferSingle(operator, from, to, 1, amount);
+        if (from == headOfState && idToCooperative[userId].coop) {
+            emit TransferSingle(operator, from, to, 1, amount);
+            return "Transfered successfully";
+        } else if (idToCooperative[userId].coop) {
+            emit TransferSingle(operator, from, to, 1, amount);
+            return "Transfered successfully";
+        } else {
+            return "Transaction cannot be performed";
+        }
     }
 
     // The following functions are overrides required by Solidity.
@@ -107,4 +159,52 @@ contract FertilizerToken is
         return super.supportsInterface(interfaceId);
     }
 }
-//Operator == not compatible with types string storage ref and literal_string "Coop".
+
+// ____________________________________________________________________________________________________________________________________________________________________
+
+contract FoodToken is ERC1155, ERC1155Burnable, Ownable, ERC1155Supply {
+    constructor() ERC1155("") {}
+
+    // FertilizerToken FTT = FertilizerToken(address contractAddress);
+
+    function mint(uint256 id, uint256 amount) public onlyOwner {
+        _mint(msg.sender, id, amount, "");
+    }
+
+    FertilizerToken tempToken = new FertilizerToken();
+
+    // function mintBatch(
+    //     address to,
+    //     uint256[] memory ids,
+    //     uint256[] memory amounts,
+    //     bytes memory data
+    // ) public onlyOwner {
+    //     _mintBatch(to, ids, amounts, data);
+    // }
+    //  function getCoopAddress(uint256 id )public returns  (address payable){
+    // return payable (FTT.idToCooperative(id).coopAddress);
+    //    }
+    function transferFODToken(uint256 coopId, uint256 amount)
+        public
+        onlyOwner
+        returns (string memory)
+    {
+        address operator = msg.sender;
+        address from = msg.sender;
+        address to = idToCooperative[coopId].coopAddress;
+        emit TransferSingle(operator, from, to, 1, amount);
+    }
+
+    // The following functions are overrides required by Solidity.
+
+    function _beforeTokenTransfer(
+        address operator,
+        address from,
+        address to,
+        uint256[] memory ids,
+        uint256[] memory amounts,
+        bytes memory data
+    ) internal override(ERC1155, ERC1155Supply) {
+        super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
+    }
+}
