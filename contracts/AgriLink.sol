@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 
 struct Cooperative {
+    string role;
     uint256 coOpId;
     address payable coopAddress;
     uint256 numberOfFarmers;
@@ -27,11 +28,14 @@ contract FertilizerToken is
     string public constant NAME = "FertilizerToken";
     string public constant SYMBOL = "FTN";
     uint8 public constant DECIMAL = 5;
+    address public headOfState;
 
     // bytes32 public constant URI_SETTER_ROLE = keccak256("URI_SETTER_ROLE");
     bytes32 public constant HEAD_OF_STATE = keccak256("HEAD_OF_STATE");
     bytes32 public constant COOPERATIVE = keccak256("COOPERATIVE");
     bytes32 public constant FARMER = keccak256("FARMER");
+
+    mapping(uint256 => Cooperative) public coopIdToAddress;
 
     constructor() ERC1155("") {
         // _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -39,6 +43,7 @@ contract FertilizerToken is
         _grantRole(HEAD_OF_STATE, msg.sender);
         _grantRole(COOPERATIVE, msg.sender);
         _grantRole(FARMER, msg.sender);
+        headOfState = msg.sender;
     }
 
     function setURI(string memory newuri) public onlyRole(HEAD_OF_STATE) {
@@ -62,10 +67,21 @@ contract FertilizerToken is
     //     _mintBatch(to, ids, amounts, "");
     // }
 
-    function transferToken(address to, uint256 amount) private {
+    function transferFTToken(
+        uint256 userId,
+        address to,
+        uint256 amount
+    ) private {
         address operator = msg.sender;
         address from = msg.sender;
+        require(
+            from == headOfState || from == coopIdToAddress[userId].coopAddress
+        );
 
+        // require(
+        //     from == headOfState &&
+        //         keccak256(coopIdToAddress[userId].role) == keccak256("Coop")
+        // );
         emit TransferSingle(operator, from, to, 1, amount);
     }
 
@@ -91,3 +107,4 @@ contract FertilizerToken is
         return super.supportsInterface(interfaceId);
     }
 }
+//Operator == not compatible with types string storage ref and literal_string "Coop".
