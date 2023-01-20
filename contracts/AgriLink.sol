@@ -8,8 +8,8 @@ import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 
-// Testing hardcoded Farmer: 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db
-// Cooperative : 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2
+// Testing hardcoded Farmer: 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2
+// Cooperative : 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db
 //Hos :0x5B38Da6a701c568545dCfcB03FcB875f56beddC4
 
 contract FertilizerToken is
@@ -23,9 +23,11 @@ contract FertilizerToken is
     Counters.Counter private _cooperativeId;
     Counters.Counter private _farmerId;
     Counters.Counter private _burnId;
+    Counters.Counter private _Tokenize;
+    // Counters.Counter private _RequestIds;
 
     struct Cooperative {
-        uint256 coOpId;
+        uint256 coopId;
         address payable coopAddress;
         uint256 numberOfFarmers;
         bool coop;
@@ -41,6 +43,7 @@ contract FertilizerToken is
     }
 
     mapping(uint256 => address) public _setToBurn;
+    //mapping(uint256 => address) public _requestFTTIds;
     address[] public cooperativeAddressArray;
     address[] public farmerAddressArray;
 
@@ -48,6 +51,7 @@ contract FertilizerToken is
     mapping(uint256 => Cooperative) public idToCooperative;
     mapping(address => Farmer) public addressToFarmer;
     mapping(address => Cooperative) public addressToCooperative;
+    mapping(string => uint256) public nameToIds;
 
     address public headOfState;
     address public contractAddress;
@@ -65,6 +69,7 @@ contract FertilizerToken is
         _grantRole(FARMER, msg.sender);
         headOfState = msg.sender;
         contractAddress = address(this);
+        _Tokenize.increment();
     }
 
     function setURI(string memory newuri) public onlyRole(HEAD_OF_STATE) {
@@ -72,7 +77,7 @@ contract FertilizerToken is
         _setURI(newuri);
     }
 
-    function mint(uint256 amount) public onlyRole(HEAD_OF_STATE) {
+    function mintFTT(uint256 amount) public onlyRole(HEAD_OF_STATE) {
         uint256 id = 1;
         _mint(msg.sender, id, amount, "");
     }
@@ -84,11 +89,20 @@ contract FertilizerToken is
     // ) public onlyRole(HEAD_OF_STATE) {
     //     _mintBatch(to, ids, amounts, "");
     // }
+
+    // Initialize the food that can be tokenize
+    function tokenizeFood(string[] memory food) public onlyRole(HEAD_OF_STATE) {
+        for (uint256 i = 0; i < food.length; i++) {
+            _Tokenize.increment();
+            nameToIds[food[i]] = _Tokenize.current();
+        }
+    }
+
     function RegisterAsCooperative() public {
         _cooperativeId.increment();
-        uint256 coOpId = _cooperativeId.current();
-        idToCooperative[coOpId] = Cooperative(
-            coOpId,
+        uint256 coopId = _cooperativeId.current();
+        idToCooperative[coopId] = Cooperative(
+            coopId,
             payable(msg.sender),
             0,
             true
@@ -119,17 +133,16 @@ contract FertilizerToken is
         address to,
         uint256 amount
     ) public returns (string memory) {
-        address operator = msg.sender;
         address from = msg.sender;
         require(
             from == headOfState || from == idToCooperative[userId].coopAddress,
             "You're not authorized"
         );
         if (from == headOfState && idToCooperative[userId].coop) {
-            emit TransferSingle(operator, from, to, 1, amount);
+            _safeTransferFrom(from, to, 1, amount, "");
             return "Transfered successfully";
         } else if (idToCooperative[userId].coop) {
-            emit TransferSingle(operator, from, to, 1, amount);
+            _safeTransferFrom(from, to, 1, amount, "");
             return "Transfered successfully";
         } else {
             return "Transaction cannot be performed";
@@ -168,6 +181,20 @@ contract FertilizerToken is
         }
     }
 
+    // function requestFulfil() private{
+    //     require(checkIfCooperative(),"You are not the cooperative");
+    //     uint256 len = _RequestIds.current();
+    //     for (uint256 i = 1; i <= len; i++) {
+    //         uint id=addressToCooperative[msg.sender].coopId;
+    //         address to=_requestFTTIds[1];
+    //         uint256 amount=addressToFarmer[to].requestedAmount;
+    //         transferFTToken(id,to,amount);
+    //         addressToFarmer[to].requested=false;
+    //     }
+    //     _RequestIds.reset();
+
+    // }
+
     function _beforeTokenTransfer(
         address operator,
         address from,
@@ -175,7 +202,7 @@ contract FertilizerToken is
         uint256[] memory ids,
         uint256[] memory amounts,
         bytes memory data
-    ) internal override(ERC1155, ERC1155Supply) {
+    ) internal virtual override(ERC1155, ERC1155Supply) {
         super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
     }
 
@@ -190,17 +217,21 @@ contract FertilizerToken is
 }
 
 // ____________________________________________________________________________________________________________________________________________________________________
+contract FoodToken is Ownable, FertilizerToken {
+    constructor() FertilizerToken() {}
 
-contract FoodToken is ERC1155, ERC1155Burnable, Ownable, ERC1155Supply {
-    constructor() ERC1155("") {}
+    // modifier onlyOwner(address add) {
+    //     require(add== msg.sender,"Your are not the owner");
+    //     _;
+    // }
 
-    // FertilizerToken FTT = FertilizerToken(address contractAddress);
-
-    function mint(uint256 id, uint256 amount) public onlyOwner {
+    function mintFOT(string memory nameProduct, uint256 amount) public {
+        require(checkIfFarmer(), "You are not the farmer");
+        uint256 id = nameToIds[nameProduct];
         _mint(msg.sender, id, amount, "");
     }
 
-    FertilizerToken tempToken = new FertilizerToken();
+    // FertilizerToken tempToken = new FertilizerToken();
 
     // function mintBatch(
     //     address to,
@@ -213,15 +244,24 @@ contract FoodToken is ERC1155, ERC1155Burnable, Ownable, ERC1155Supply {
     //  function getCoopAddress(uint256 id )public returns  (address payable){
     // return payable (FTT.idToCooperative(id).coopAddress);
     //    }
-    // function transferFODToken(uint256 coopId, uint256 amount)
-    //     public
-    //     onlyOwner
-    //     returns (string memory)
-    // {
-    //     address operator = msg.sender;
-    //     address from = msg.sender;
-    //     address to = idToCooperative[coopId].coopAddress;
-    //     emit TransferSingle(operator, from, to, 1, amount);
+    function transferFODToken(uint256 coopId, uint256 amount)
+        public
+        onlyRole(FARMER)
+        returns (string memory)
+    {
+        address from = msg.sender;
+        address to = idToCooperative[coopId].coopAddress;
+        _safeTransferFrom(from, to, 1, amount, "");
+        return "Transfered successfully";
+    }
+
+    // function requestFTT(uint amount)public {
+    //     require(checkIfFarmer(),"You are not the farmer");
+    //     addressToFarmer[msg.sender].requested=true;
+    //     addressToFarmer[msg.sender].requestedAmount=amount;
+    //     _RequestIds.increment();
+    //     uint256 id=_RequestIds.current();
+    //     _requestFTTIds[id]=msg.sender;
     // }
 
     // The following functions are overrides required by Solidity.
@@ -233,7 +273,7 @@ contract FoodToken is ERC1155, ERC1155Burnable, Ownable, ERC1155Supply {
         uint256[] memory ids,
         uint256[] memory amounts,
         bytes memory data
-    ) internal override(ERC1155, ERC1155Supply) {
+    ) internal virtual override {
         super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
     }
 }
