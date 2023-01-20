@@ -6,23 +6,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-
-// struct Cooperative {
-//     string role;
-//     uint256 coOpId;
-//     address payable coopAddress;
-//     uint256 numberOfFarmers;
-// }
-// struct  Farmer  {
-//     address payable farmerAddress;
-//     uint256 land;
-//     bool requested;
-//     uint256 requestedAmount;
-
-// }
-
-// mapping(uint256 => Farmer)  idToFarmer;
-// mapping(uint256 => Cooperative)  idToCooperative;
+import "@openzeppelin/contracts/utils/Counters.sol";
 
 contract FertilizerToken is
     ERC1155,
@@ -30,6 +14,12 @@ contract FertilizerToken is
     ERC1155Burnable,
     ERC1155Supply
 {
+    using Counters for Counters.Counter;
+    Counters.Counter private _FTTokenId;
+    Counters.Counter private _cooperativeId;
+    Counters.Counter private _farmerId;
+    Counters.Counter private _burnId;
+
     struct Cooperative {
         uint256 coOpId;
         address payable coopAddress;
@@ -43,11 +33,17 @@ contract FertilizerToken is
         uint256 land;
         bool requested;
         uint256 requestedAmount;
-        bool farmer;
+        bool isfarmer;
     }
 
-    mapping(uint256 => Farmer) idToFarmer;
-    mapping(uint256 => Cooperative) idToCooperative;
+    mapping(uint256 => address) public _setToBurn;
+    address[] public cooperativeAddressArray;
+    address[] public farmerAddressArray;
+
+    mapping(uint256 => Farmer) public idToFarmer;
+    mapping(uint256 => Cooperative) public idToCooperative;
+    mapping(address => Farmer) public addressToFarmer;
+    mapping(address => Cooperative) public addressToCooperative;
 
     string public constant NAME = "FertilizerToken";
     string public constant SYMBOL = "FTN";
@@ -68,7 +64,6 @@ contract FertilizerToken is
         _grantRole(FARMER, msg.sender);
         headOfState = msg.sender;
         contractAddress = address(this);
-        bool setToBurn;
     }
 
     function setURI(string memory newuri) public onlyRole(HEAD_OF_STATE) {
@@ -92,15 +87,18 @@ contract FertilizerToken is
     //     _mintBatch(to, ids, amounts, "");
     // }
     function RegisterAsCooperative(uint256 coOpId) public {
+        _cooperativeId.increment();
         idToCooperative[coOpId] = Cooperative(
             coOpId,
             payable(msg.sender),
             0,
             true
         );
+        cooperativeAddressArray.push(msg.sender);
     }
 
     function RegisterAsFarmer(uint256 userId, uint256 land) public {
+        _farmerId.increment();
         idToFarmer[userId] = Farmer(
             userId,
             payable(msg.sender),
@@ -109,6 +107,7 @@ contract FertilizerToken is
             0,
             true
         );
+        farmerAddressArray.push(msg.sender);
     }
 
     function getcoopAddress(uint256 id) public view returns (address) {
@@ -137,7 +136,37 @@ contract FertilizerToken is
         }
     }
 
-    // The following functions are overrides required by Solidity.
+    function checkIfCooperative() public returns (bool) {
+        for (uint256 i = 0; i < cooperativeAddressArray.length; i++) {
+            if (cooperativeAddressArray[i] == msg.sender) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function checkIfFarmer() public returns (bool) {
+        for (uint256 i = 0; i < farmerAddressArray.length; i++) {
+            if (farmerAddressArray[i] == msg.sender) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function setBurnFTToken() public {
+        require(checkIfFarmer(), "Youre not a farmer");
+        _burnId.increment();
+        uint256 burnId = _burnId.current();
+        _setToBurn[burnId] = msg.sender;
+    }
+
+    function burnThemAll() private {
+        uint256 len = _burnId.current();
+        for (uint256 i = 1; i <= len; i++) {
+            _burn(_setToBurn[i], 1, balanceOf(_setToBurn[i], 1));
+        }
+    }
 
     function _beforeTokenTransfer(
         address operator,
@@ -184,16 +213,16 @@ contract FoodToken is ERC1155, ERC1155Burnable, Ownable, ERC1155Supply {
     //  function getCoopAddress(uint256 id )public returns  (address payable){
     // return payable (FTT.idToCooperative(id).coopAddress);
     //    }
-    function transferFODToken(uint256 coopId, uint256 amount)
-        public
-        onlyOwner
-        returns (string memory)
-    {
-        address operator = msg.sender;
-        address from = msg.sender;
-        address to = idToCooperative[coopId].coopAddress;
-        emit TransferSingle(operator, from, to, 1, amount);
-    }
+    // function transferFODToken(uint256 coopId, uint256 amount)
+    //     public
+    //     onlyOwner
+    //     returns (string memory)
+    // {
+    //     address operator = msg.sender;
+    //     address from = msg.sender;
+    //     address to = idToCooperative[coopId].coopAddress;
+    //     emit TransferSingle(operator, from, to, 1, amount);
+    // }
 
     // The following functions are overrides required by Solidity.
 
