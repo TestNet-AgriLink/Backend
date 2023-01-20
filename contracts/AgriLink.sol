@@ -8,6 +8,10 @@ import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 
+// Testing hardcoded Farmer: 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db
+// Cooperative : 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2
+//Hos :0x5B38Da6a701c568545dCfcB03FcB875f56beddC4
+
 contract FertilizerToken is
     ERC1155,
     AccessControl,
@@ -45,9 +49,6 @@ contract FertilizerToken is
     mapping(address => Farmer) public addressToFarmer;
     mapping(address => Cooperative) public addressToCooperative;
 
-    string public constant NAME = "FertilizerToken";
-    string public constant SYMBOL = "FTN";
-    uint8 public constant DECIMAL = 5;
     address public headOfState;
     address public contractAddress;
 
@@ -71,12 +72,9 @@ contract FertilizerToken is
         _setURI(newuri);
     }
 
-    function mint(
-        address account,
-        uint256 id,
-        uint256 amount
-    ) public onlyRole(HEAD_OF_STATE) {
-        _mint(account, id = 1, amount, "");
+    function mint(uint256 amount) public onlyRole(HEAD_OF_STATE) {
+        uint256 id = 1;
+        _mint(msg.sender, id, amount, "");
     }
 
     // function mintBatch(
@@ -86,8 +84,9 @@ contract FertilizerToken is
     // ) public onlyRole(HEAD_OF_STATE) {
     //     _mintBatch(to, ids, amounts, "");
     // }
-    function RegisterAsCooperative(uint256 coOpId) public {
+    function RegisterAsCooperative() public {
         _cooperativeId.increment();
+        uint256 coOpId = _cooperativeId.current();
         idToCooperative[coOpId] = Cooperative(
             coOpId,
             payable(msg.sender),
@@ -97,8 +96,9 @@ contract FertilizerToken is
         cooperativeAddressArray.push(msg.sender);
     }
 
-    function RegisterAsFarmer(uint256 userId, uint256 land) public {
+    function RegisterAsFarmer(uint256 land) public {
         _farmerId.increment();
+        uint256 userId = _farmerId.current();
         idToFarmer[userId] = Farmer(
             userId,
             payable(msg.sender),
@@ -136,7 +136,7 @@ contract FertilizerToken is
         }
     }
 
-    function checkIfCooperative() public returns (bool) {
+    function checkIfCooperative() public view returns (bool) {
         for (uint256 i = 0; i < cooperativeAddressArray.length; i++) {
             if (cooperativeAddressArray[i] == msg.sender) {
                 return true;
@@ -145,7 +145,7 @@ contract FertilizerToken is
         return false;
     }
 
-    function checkIfFarmer() public returns (bool) {
+    function checkIfFarmer() public view returns (bool) {
         for (uint256 i = 0; i < farmerAddressArray.length; i++) {
             if (farmerAddressArray[i] == msg.sender) {
                 return true;
